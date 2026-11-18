@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://jsonbin.io https://api.jsonbin.io; manifest-src 'self' data: blob:; font-src 'self' data:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://qrserver.com https://api.qrserver.com https:; connect-src 'self' https://jsonbin.io https://api.jsonbin.io https://qrserver.com https://api.qrserver.com; manifest-src 'self' data: blob:; font-src 'self' data:;" />
 
   <title>LidoPass — Coastal Booking &amp; Live Availability Network</title>
   <meta name="description" content="Piattaforma digitale della Costa Adriatica per disponibilità in tempo reale, formule contrattuali, impianti sportivi ed eventi di stabilimenti balneari e beach club." />
@@ -397,6 +397,7 @@
       font-family: var(--font-display);
       font-size: clamp(1.42rem, 2.8vw, 1.95rem);
       font-weight: 800;
+      letter-spacing: -0.03em;
       letter-spacing: -0.03em;
       color: var(--night);
       text-wrap: balance;
@@ -1188,10 +1189,12 @@
       box-shadow: 0 4px 14px rgba(11, 19, 43, 0.05);
     }
 
-    .qr-canvas-wrap canvas {
+    .qr-canvas-wrap canvas,
+    .qr-canvas-wrap img {
       display: block;
       max-width: 100%;
       height: auto;
+      border-radius: 6px;
     }
 
     details.admin-panel {
@@ -1582,8 +1585,7 @@
         <h1 id="title-registra">Registra Struttura</h1>
         <p>Inserimento gratuito per stabilimenti balneari, beach club e impianti sportivi della Costa Adriatica.</p>
       </div>
-
-      <div id="reg-form-container" class="glass-card" style="max-width: 780px;">
+       <div id="reg-form-container" class="glass-card" style="max-width: 780px;">
         <form id="register-lido-form" class="form-grid" novalidate>
           <div class="form-grid-2">
             <div class="field">
@@ -1709,7 +1711,7 @@
           <div class="qr-poster-box">
             <div style="font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ocean-dark);">QR Code Ufficiale</div>
             <div class="qr-canvas-wrap">
-              <canvas id="reg-qr-canvas" width="200" height="200"></canvas>
+              <img id="reg-qr-img" width="200" height="200" alt="QR Code ufficiale della struttura" referrerpolicy="no-referrer" />
             </div>
             <p id="reg-qr-caption" style="margin: 0; font-size: 0.82rem; color: var(--slate);"></p>
             <button type="button" class="btn-secondary" id="reg-download-qr" style="width: 100%;">
@@ -1823,7 +1825,7 @@
           <div class="qr-poster-box">
             <div style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ocean);">QR Code Struttura ad Alta Definizione</div>
             <div class="qr-canvas-wrap">
-              <canvas id="mgr-qr-canvas" width="240" height="240"></canvas>
+              <img id="mgr-qr-img" width="240" height="240" alt="QR Code ufficiale della struttura" referrerpolicy="no-referrer" />
             </div>
             <p id="mgr-qr-caption" style="margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--night); max-width: 280px; line-height: 1.45;"></p>
             <div id="mgr-qr-url" style="font-size: 0.72rem; color: var(--muted); word-break: break-all;"></div>
@@ -2059,8 +2061,7 @@
       <button type="button" id="install-modal-done" class="btn-secondary" style="width: 100%;">Chiudi</button>
     </div>
   </div>
-
-  <!-- Toast -->
+   <!-- Toast -->
   <div id="app-toast" class="toast" role="status" aria-live="polite"></div>
 
   <script>
@@ -2186,391 +2187,109 @@
       }
 
       /* ===========================================================
-         2. PURE JS QR CODE ENCODER (Versions 1-12, ECC M)
+         2. QR CODE SERVICE (HTTPS://QRSERVER.COM / API.QRSERVER.COM)
          =========================================================== */
       const QR = (function () {
-        const EXP = new Uint8Array(512);
-        const LOG = new Uint8Array(256);
-        let x = 1;
-        for (let i = 0; i < 255; i++) {
-          EXP[i] = x;
-          LOG[x] = i;
-          x <<= 1;
-          if (x & 0x100) x ^= 0x11d;
-        }
-        for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
-
-        function gfMul(a, b) {
-          return a === 0 || b === 0 ? 0 : EXP[LOG[a] + LOG[b]];
+        function buildQrUrl(text, size) {
+          const px = size || 300;
+          return (
+            'https://api.qrserver.com/v1/create-qr-code/?size=' +
+            px + 'x' + px +
+            '&margin=10&color=0B132B&bgcolor=FFFFFF&ecc=M&data=' +
+            encodeURIComponent(text)
+          );
         }
 
-        function rsGenPoly(degree) {
-          let poly = [1];
-          for (let i = 0; i < degree; i++) {
-            const next = new Array(poly.length + 1).fill(0);
-            const factor = EXP[i];
-            for (let j = 0; j < poly.length; j++) {
-              next[j] ^= poly[j];
-              next[j + 1] ^= gfMul(poly[j], factor);
-            }
-            poly = next;
-          }
-          return poly;
-        }
-
-        function rsEncode(data, ecLen) {
-          const gen = rsGenPoly(ecLen);
-          const res = new Uint8Array(data.length + ecLen);
-          res.set(data);
-          for (let i = 0; i < data.length; i++) {
-            const coef = res[i];
-            if (coef !== 0) {
-              for (let j = 0; j < gen.length; j++) {
-                res[i + j] ^= gfMul(gen[j], coef);
-              }
-            }
-          }
-          return res.slice(data.length);
-        }
-
-        const VERSIONS = [
-          null,
-          [1, 26, 10, 1, 16, 0, 0, []],
-          [2, 44, 16, 1, 28, 0, 0, [6, 18]],
-          [3, 70, 26, 1, 44, 0, 0, [6, 22]],
-          [4, 100, 18, 2, 32, 0, 0, [6, 26]],
-          [5, 134, 24, 2, 43, 0, 0, [6, 30]],
-          [6, 172, 16, 4, 27, 0, 0, [6, 34]],
-          [7, 196, 18, 4, 31, 0, 0, [6, 22, 38]],
-          [8, 242, 22, 2, 38, 2, 39, [6, 24, 42]],
-          [9, 292, 22, 3, 36, 2, 37, [6, 26, 46]],
-          [10, 346, 26, 4, 43, 1, 44, [6, 28, 50]],
-          [11, 404, 30, 1, 50, 4, 51, [6, 30, 54]],
-          [12, 466, 22, 6, 36, 2, 37, [6, 32, 58]]
-        ];
-
-        function formatBitsM(mask) {
-          const data = mask & 7;
-          let val = data << 10;
-          for (let i = 14; i >= 10; i--) {
-            if ((val >> i) & 1) val ^= (0x537 << (i - 10));
-          }
-          return ((data << 10) | val) ^ 0x5412;
-        }
-
-        function versionBits(ver) {
-          let val = ver << 12;
-          for (let i = 17; i >= 12; i--) {
-            if ((val >> i) & 1) val ^= (0x1f25 << (i - 12));
-          }
-          return (ver << 12) | val;
-        }
-
-        function maskBit(mask, r, c) {
-          switch (mask) {
-            case 0: return (r + c) % 2 === 0;
-            case 1: return r % 2 === 0;
-            case 2: return c % 3 === 0;
-            case 3: return (r + c) % 3 === 0;
-            case 4: return (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0;
-            case 5: return ((r * c) % 2 + (r * c) % 3) === 0;
-            case 6: return (((r * c) % 2 + (r * c) % 3) % 2) === 0;
-            case 7: return (((r + c) % 2 + (r * c) % 3) % 2) === 0;
-          }
-          return false;
-        }
-
-        function encode(text) {
-          const bytes = new TextEncoder().encode(text);
-          let ver = 1;
-          for (; ver < VERSIONS.length; ver++) {
-            const v = VERSIONS[ver];
-            const totalDataCW = v[3] * v[4] + v[5] * v[6];
-            const countBits = ver <= 9 ? 8 : 16;
-            const availBytes = Math.floor((totalDataCW * 8 - 4 - countBits) / 8);
-            if (bytes.length <= availBytes) break;
-          }
-          if (ver >= VERSIONS.length) ver = VERSIONS.length - 1;
-
-          const spec = VERSIONS[ver];
-          const size = ver * 4 + 17;
-          const totalDataCW = spec[3] * spec[4] + spec[5] * spec[6];
-
-          const bits = [];
-          const pushBits = (val, len) => {
-            for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
+        function renderToImg(imgEl, text, pxSize) {
+          if (!imgEl) return;
+          const qrSrc = buildQrUrl(text, pxSize || 300);
+          imgEl.crossOrigin = 'anonymous';
+          imgEl.referrerPolicy = 'no-referrer';
+          imgEl.src = qrSrc;
+          imgEl.onerror = function () {
+            showToast('Connessione necessaria per caricare il QR Code.');
           };
-          pushBits(0b0100, 4);
-          pushBits(bytes.length, ver <= 9 ? 8 : 16);
-          for (let i = 0; i < bytes.length; i++) pushBits(bytes[i], 8);
-          const maxBits = totalDataCW * 8;
-          for (let i = 0; i < 4 && bits.length < maxBits; i++) bits.push(0);
-          while (bits.length % 8 !== 0) bits.push(0);
-          let padToggle = 0;
-          while (bits.length < maxBits) {
-            pushBits(padToggle % 2 === 0 ? 0xEC : 0x11, 8);
-            padToggle++;
-          }
-
-          const dataCW = new Uint8Array(totalDataCW);
-          for (let i = 0; i < totalDataCW; i++) {
-            let b = 0;
-            for (let j = 0; j < 8; j++) b = (b << 1) | bits[i * 8 + j];
-            dataCW[i] = b;
-          }
-
-          const blocks = [];
-          const ecBlocks = [];
-          let offset = 0;
-          for (let b = 0; b < spec[3]; b++) {
-            const blk = dataCW.slice(offset, offset + spec[4]);
-            offset += spec[4];
-            blocks.push(blk);
-            ecBlocks.push(rsEncode(blk, spec[2]));
-          }
-          for (let b = 0; b < spec[5]; b++) {
-            const blk = dataCW.slice(offset, offset + spec[6]);
-            offset += spec[6];
-            blocks.push(blk);
-            ecBlocks.push(rsEncode(blk, spec[2]));
-          }
-
-          const finalCW = [];
-          const maxDataLen = Math.max(spec[4], spec[6]);
-          for (let i = 0; i < maxDataLen; i++) {
-            for (let b = 0; b < blocks.length; b++) {
-              if (i < blocks[b].length) finalCW.push(blocks[b][i]);
-            }
-          }
-          for (let i = 0; i < spec[2]; i++) {
-            for (let b = 0; b < ecBlocks.length; b++) {
-              finalCW.push(ecBlocks[b][i]);
-            }
-          }
-
-          const finalBits = [];
-          for (let i = 0; i < finalCW.length; i++) {
-            for (let j = 7; j >= 0; j--) finalBits.push((finalCW[i] >> j) & 1);
-          }
-
-          const base = Array.from({ length: size }, () => new Uint8Array(size));
-          const reserved = Array.from({ length: size }, () => new Uint8Array(size));
-
-          function setFunc(r, c, val) {
-            if (r >= 0 && r < size && c >= 0 && c < size) {
-              base[r][c] = val ? 1 : 0;
-              reserved[r][c] = 1;
-            }
-          }
-
-          function placeFinder(r0, c0) {
-            for (let r = -1; r <= 7; r++) {
-              for (let c = -1; c <= 7; c++) {
-                const rr = r0 + r, cc = c0 + c;
-                if (rr < 0 || rr >= size || cc < 0 || cc >= size) continue;
-                const on =
-                  (r >= 0 && r <= 6 && c >= 0 && c <= 6) &&
-                  (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4));
-                setFunc(rr, cc, on);
-              }
-            }
-          }
-
-          placeFinder(0, 0);
-          placeFinder(0, size - 7);
-          placeFinder(size - 7, 0);
-
-          for (let i = 8; i < size - 8; i++) {
-            setFunc(6, i, i % 2 === 0);
-            setFunc(i, 6, i % 2 === 0);
-          }
-
-          const align = spec[7];
-          for (let i = 0; i < align.length; i++) {
-            for (let j = 0; j < align.length; j++) {
-              const r = align[i], c = align[j];
-              if ((r <= 8 && c <= 8) || (r <= 8 && c >= size - 8) || (r >= size - 8 && c <= 8)) continue;
-              for (let dr = -2; dr <= 2; dr++) {
-                for (let dc = -2; dc <= 2; dc++) {
-                  const on = Math.abs(dr) === 2 || Math.abs(dc) === 2 || (dr === 0 && dc === 0);
-                  setFunc(r + dr, c + dc, on);
-                }
-              }
-            }
-          }
-
-          setFunc(size - 8, 8, 1);
-
-          for (let i = 0; i < 9; i++) {
-            if (i !== 6) {
-              reserved[8][i] = 1;
-              reserved[i][8] = 1;
-            }
-          }
-          for (let i = 0; i < 8; i++) {
-            reserved[8][size - 1 - i] = 1;
-            reserved[size - 1 - i][8] = 1;
-          }
-
-          if (ver >= 7) {
-            const vBits = versionBits(ver);
-            for (let i = 0; i < 18; i++) {
-              const bit = (vBits >> i) & 1;
-              const r = Math.floor(i / 3);
-              const c = size - 11 + (i % 3);
-              setFunc(r, c, bit);
-              setFunc(c, r, bit);
-            }
-          }
-
-          let bitIdx = 0;
-          let dir = -1;
-          for (let col = size - 1; col > 0; col -= 2) {
-            if (col === 6) col--;
-            for (let step = 0; step < size; step++) {
-              const row = dir === -1 ? size - 1 - step : step;
-              for (let dc = 0; dc < 2; dc++) {
-                const c = col - dc;
-                if (!reserved[row][c]) {
-                  base[row][c] = bitIdx < finalBits.length ? finalBits[bitIdx++] : 0;
-                }
-              }
-            }
-            dir = -dir;
-          }
-
-          let bestMatrix = null;
-          let bestScore = Infinity;
-
-          for (let m = 0; m < 8; m++) {
-            const mat = base.map((row, r) =>
-              row.map((val, c) => (reserved[r][c] ? val : val ^ (maskBit(m, r, c) ? 1 : 0)))
-            );
-
-            const fBits = formatBitsM(m);
-            for (let i = 0; i < 15; i++) {
-              const bit = (fBits >> i) & 1;
-              if (i < 6) mat[8][i] = bit;
-              else if (i < 8) mat[8][i + 1] = bit;
-              else mat[8][size - 15 + i] = bit;
-
-              if (i < 8) mat[size - 1 - i][8] = bit;
-              else if (i < 9) mat[7][8] = bit;
-              else mat[14 - i][8] = bit;
-            }
-
-            let score = 0;
-            let darkCount = 0;
-            for (let r = 0; r < size; r++) {
-              let runR = 1, runC = 1;
-              for (let c = 0; c < size; c++) {
-                if (mat[r][c]) darkCount++;
-                if (c > 0) {
-                  if (mat[r][c] === mat[r][c - 1]) runR++;
-                  else { if (runR >= 5) score += 3 + (runR - 5); runR = 1; }
-                  if (mat[c][r] === mat[c - 1][r]) runC++;
-                  else { if (runC >= 5) score += 3 + (runC - 5); runC = 1; }
-                }
-              }
-              if (runR >= 5) score += 3 + (runR - 5);
-              if (runC >= 5) score += 3 + (runC - 5);
-            }
-            const pct = (darkCount * 100) / (size * size);
-            score += Math.floor(Math.abs(pct - 50) / 5) * 10;
-
-            if (score < bestScore) {
-              bestScore = score;
-              bestMatrix = mat;
-            }
-          }
-
-          return { size, matrix: bestMatrix };
         }
 
-        function drawToCanvas(canvas, text, pxSize) {
-          const { size, matrix } = encode(text);
-          const quiet = 4;
-          const totalModules = size + quiet * 2;
-          const scale = Math.max(2, Math.floor(pxSize / totalModules));
-          const realSize = totalModules * scale;
-          canvas.width = realSize;
-          canvas.height = realSize;
-          const ctx = canvas.getContext('2d');
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, realSize, realSize);
-          ctx.fillStyle = '#0B132B';
-          for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
-              if (matrix[r][c]) {
-                ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
-              }
-            }
+        function loadQrImageForCanvas(url, size) {
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.referrerPolicy = 'no-referrer';
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('QR image load failed'));
+            img.src = buildQrUrl(url, size);
+          });
+        }
+
+        async function downloadPosterPng(lido, url) {
+          try {
+            showToast('Generazione locandina PNG in corso...');
+            const qrImg = await loadQrImageForCanvas(url, 400);
+
+            const poster = document.createElement('canvas');
+            poster.width = 760;
+            poster.height = 960;
+            const ctx = poster.getContext('2d');
+
+            ctx.fillStyle = '#F6F8FB';
+            ctx.fillRect(0, 0, 760, 960);
+
+            const grad = ctx.createLinearGradient(0, 0, 760, 180);
+            grad.addColorStop(0, '#0B132B');
+            grad.addColorStop(1, '#0284C7');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 760, 180);
+
+            // Minimal gold accent ring
+            ctx.strokeStyle = '#C59B27';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(680, 66, 18, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 40px sans-serif';
+            ctx.fillText('LidoPass', 52, 82);
+            ctx.font = '20px sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.84)';
+            ctx.fillText('Coastal Booking & Live Availability Network', 52, 122);
+
+            ctx.fillStyle = '#0B132B';
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 34px sans-serif';
+            ctx.fillText(lido.name.slice(0, 34), 380, 250);
+            ctx.fillStyle = '#475569';
+            ctx.font = '22px sans-serif';
+            ctx.fillText(lido.city + ' - ' + lido.address, 380, 290);
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(160, 330, 440, 440);
+            ctx.strokeStyle = 'rgba(15,23,42,0.12)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(160, 330, 440, 440);
+            ctx.drawImage(qrImg, 180, 350, 400, 400);
+
+            ctx.fillStyle = '#0284C7';
+            ctx.font = 'bold 23px sans-serif';
+            ctx.fillText('Scansiona per verificare disponibilità live,', 380, 825);
+            ctx.fillText('campi sportivi ed eventi della struttura', 380, 860);
+
+            ctx.fillStyle = '#64748B';
+            ctx.font = '18px sans-serif';
+            ctx.fillText('Inquadra il codice con la fotocamera dello smartphone', 380, 908);
+
+            const a = document.createElement('a');
+            a.download = 'LidoPass-QR-' + lido.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.png';
+            a.href = poster.toDataURL('image/png');
+            a.click();
+            showToast('Locandina QR scaricata.');
+          } catch (err) {
+            showToast('Impossibile scaricare la locandina: verifica la connessione.');
           }
         }
 
-        function downloadPosterPng(lido, url) {
-          const poster = document.createElement('canvas');
-          poster.width = 760;
-          poster.height = 960;
-          const ctx = poster.getContext('2d');
-
-          ctx.fillStyle = '#F6F8FB';
-          ctx.fillRect(0, 0, 760, 960);
-
-          const grad = ctx.createLinearGradient(0, 0, 760, 180);
-          grad.addColorStop(0, '#0B132B');
-          grad.addColorStop(1, '#0284C7');
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, 760, 180);
-
-          // Minimal gold accent ring
-          ctx.strokeStyle = '#C59B27';
-          ctx.lineWidth = 4;
-          ctx.beginPath();
-          ctx.arc(680, 66, 18, 0, Math.PI * 2);
-          ctx.stroke();
-
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = 'bold 40px sans-serif';
-          ctx.fillText('LidoPass', 52, 82);
-          ctx.font = '20px sans-serif';
-          ctx.fillStyle = 'rgba(255,255,255,0.84)';
-          ctx.fillText('Coastal Booking & Live Availability Network', 52, 122);
-
-          ctx.fillStyle = '#0B132B';
-          ctx.textAlign = 'center';
-          ctx.font = 'bold 34px sans-serif';
-          ctx.fillText(lido.name.slice(0, 34), 380, 250);
-          ctx.fillStyle = '#475569';
-          ctx.font = '22px sans-serif';
-          ctx.fillText(lido.city + ' - ' + lido.address, 380, 290);
-
-          const qrCanvas = document.createElement('canvas');
-          drawToCanvas(qrCanvas, url, 400);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(160, 330, 440, 440);
-          ctx.strokeStyle = 'rgba(15,23,42,0.12)';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(160, 330, 440, 440);
-          const qrOffset = (440 - qrCanvas.width) / 2;
-          ctx.drawImage(qrCanvas, 160 + qrOffset, 330 + qrOffset);
-
-          ctx.fillStyle = '#0284C7';
-          ctx.font = 'bold 23px sans-serif';
-          ctx.fillText('Scansiona per verificare disponibilità live,', 380, 825);
-          ctx.fillText('campi sportivi ed eventi della struttura', 380, 860);
-
-          ctx.fillStyle = '#64748B';
-          ctx.font = '18px sans-serif';
-          ctx.fillText('Inquadra il codice con la fotocamera dello smartphone', 380, 908);
-
-          const a = document.createElement('a');
-          a.download = 'LidoPass-QR-' + lido.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.png';
-          a.href = poster.toDataURL('image/png');
-          a.click();
-        }
-
-        return { drawToCanvas, downloadPosterPng };
+        return { renderToImg, downloadPosterPng };
       })();
 
       /* ===========================================================
@@ -3039,8 +2758,8 @@
         });
 
         const shareUrl = getLidoShareUrl(lido.id);
-        const canvas = document.getElementById('mgr-qr-canvas');
-        QR.drawToCanvas(canvas, shareUrl, 240);
+        const qrImgEl = document.getElementById('mgr-qr-img');
+        QR.renderToImg(qrImgEl, shareUrl, 240);
         document.getElementById('mgr-qr-caption').textContent =
           `Inquadra per consultare disponibilità live, servizi ed eventi di ${lido.name}`;
         document.getElementById('mgr-qr-url').textContent = shareUrl;
@@ -3056,8 +2775,7 @@
         document.getElementById('profile-sub').textContent =
           (state.profile.city ? state.profile.city + ' · ' : '') +
           (state.profile.email ? state.profile.email : 'Archiviazione locale esclusiva su dispositivo');
-
-        const initials = displayName
+ const initials = displayName
           .split(/\s+/)
           .filter(Boolean)
           .slice(0, 2)
@@ -3308,7 +3026,7 @@
           document.getElementById('reg-summary-pin').textContent = newLido.pin;
           document.getElementById('reg-qr-caption').textContent = `Inquadra per consultare disponibilità live e servizi di ${newLido.name}`;
 
-          QR.drawToCanvas(document.getElementById('reg-qr-canvas'), getLidoShareUrl(newLido.id), 200);
+          QR.renderToImg(document.getElementById('reg-qr-img'), getLidoShareUrl(newLido.id), 200);
           showToast(syncRes.synced ? 'Struttura pubblicata sul cloud.' : 'Struttura pubblicata in locale.');
         });
 
